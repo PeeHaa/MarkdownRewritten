@@ -111,6 +111,41 @@ class Markdown
                                            );
 
     /**
+     * @var array List of document level elements gamut
+     *            The gamut is defined by method to run and the priority
+     *            so it can easily be sorted
+     */
+    protected $documentGamut = array('stripLinkDefinitions' => 20,
+                                     'runBasicBlockGamut'   => 30,
+                                     );
+
+    /**
+     * @var array List of block level elements gamut
+     *            The gamut is defined by method to run and the priority
+     *            so it can easily be sorted
+     */
+    protected $blockGamut = array('doHeaders'         => 10,
+                                  'doHorizontalRules' => 20,
+                                  'doLists'           => 40,
+                                  'doCodeBlocks'      => 50,
+                                  'doBlockQuotes'     => 60,
+                                  );
+
+    /**
+     * @var array List of inline elements gamut
+     *            The gamut is defined by method to run and the priority
+     *            so it can easily be sorted
+     */
+    protected $inlineGamut = array('parseSpan'           => -30,
+                                   'doImages'            =>  10,
+                                   'doAnchors'           =>  20,
+                                   'doAutoLinks'         =>  30,
+                                   'encodeAmpsAndAngles' =>  40,
+                                   'doItalicsAndBold'    =>  50,
+                                   'doHardBreaks'        =>  60,
+                                   );
+
+    /**
      * @var array List of al lregex patterns to match em and strong tags
      */
     protected $emAndStrongRegexList;
@@ -151,7 +186,7 @@ class Markdown
     protected $escapeCharsRegex;
 
     /**
-     * Create instance
+     * Initializes variables used throughout the class
      *
      * @return void
      */
@@ -168,6 +203,10 @@ class Markdown
         $this->nestedUrlParenthesisRegex.= str_repeat('(?>\)))*', self::MAX_NESTED_URL_PARENTHESIS);
 
         $this->escapeCharsRegex = '[' . preg_quote(self::ESCAPE_CHARS) . ']';
+
+        asort($this->documentGamut);
+        asort($this->blockGamut);
+        asort($this->inlineGamut);
     }
 
     /**
@@ -217,14 +256,6 @@ class Markdown
 	var $predef_urls = array();
 	var $predef_titles = array();
 
-
-    public function __constructx()
-    {
-        # Sort document, block, and span gamut in ascendent priority order.
-        asort($this->document_gamut);
-        asort($this->block_gamut);
-        asort($this->span_gamut);
-    }
 
 	function setup() {
 	#
@@ -280,7 +311,7 @@ class Markdown
 		$text = preg_replace('/^[ ]+$/m', '', $text);
 
 		# Run document gamut methods.
-		foreach ($this->document_gamut as $method => $priority) {
+		foreach ($this->documentGamut as $method => $priority) {
 			$text = $this->$method($text);
 		}
 
@@ -288,13 +319,6 @@ class Markdown
 
 		return $text . "\n";
 	}
-
-	var $document_gamut = array(
-		# Strip link definitions, store in hashes.
-		"stripLinkDefinitions" => 20,
-
-		"runBasicBlockGamut"   => 30,
-		);
 
 
 	function stripLinkDefinitions($text) {
@@ -515,19 +539,6 @@ class Markdown
 	}
 
 
-	var $block_gamut = array(
-	#
-	# These are all the transformations that form block-level
-	# tags like paragraphs, headers, and list items.
-	#
-		"doHeaders"         => 10,
-		"doHorizontalRules" => 20,
-
-		"doLists"           => 40,
-		"doCodeBlocks"      => 50,
-		"doBlockQuotes"     => 60,
-		);
-
 	function runBlockGamut($text) {
 	#
 	# Run block gamut tranformations.
@@ -548,7 +559,7 @@ class Markdown
 	# useful when HTML blocks are known to be already hashed, like in the first
 	# whole-document pass.
 	#
-		foreach ($this->block_gamut as $method => $priority) {
+		foreach ($this->blockGamut as $method => $priority) {
 			$text = $this->$method($text);
 		}
 
@@ -577,35 +588,11 @@ class Markdown
 	}
 
 
-	var $span_gamut = array(
-	#
-	# These are all the transformations that occur *within* block-level
-	# tags like paragraphs, headers, and list items.
-	#
-		# Process character escapes, code spans, and inline HTML
-		# in one shot.
-		"parseSpan"           => -30,
-
-		# Process anchor and image tags. Images must come first,
-		# because ![foo][f] looks like an anchor.
-		"doImages"            =>  10,
-		"doAnchors"           =>  20,
-
-		# Make links out of things like `<http://example.com/>`
-		# Must come after doAnchors, because you can use < and >
-		# delimiters in inline links like [this](<url>).
-		"doAutoLinks"         =>  30,
-		"encodeAmpsAndAngles" =>  40,
-
-		"doItalicsAndBold"    =>  50,
-		"doHardBreaks"        =>  60,
-		);
-
 	function runSpanGamut($text) {
 	#
 	# Run span gamut tranformations.
 	#
-		foreach ($this->span_gamut as $method => $priority) {
+		foreach ($this->inlineGamut as $method => $priority) {
 			$text = $this->$method($text);
 		}
 
@@ -1311,7 +1298,7 @@ class Markdown
 //					$div_content = $this->hashHTMLBlocks($div_content);
 //
 //					# Run document gamut methods on the content.
-//					foreach ($this->document_gamut as $method => $priority) {
+//					foreach ($this->documentGamut as $method => $priority) {
 //						$div_content = $this->$method($div_content);
 //					}
 //
