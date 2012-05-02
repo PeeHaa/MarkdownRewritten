@@ -87,28 +87,28 @@ class Markdown
     const MAX_NESTED_URL_PARENTHESIS = 4;
 
     /**
-     * @const array List of possible em tag regex patterns
+     * @var array List of possible em tag regex patterns
      */
-    const EM_REGEX_LIST = array(''  => '(?:(?<!\*)\*(?!\*)|(?<!_)_(?!_))(?=\S|$)(?![\.,:;]\s)',
-                                '*' => '(?<=\S|^)(?<!\*)\*(?!\*)',
-                                '_' => '(?<=\S|^)(?<!_)_(?!_)',
-                                );
+    protected $emRegexList = array(''  => '(?:(?<!\*)\*(?!\*)|(?<!_)_(?!_))(?=\S|$)(?![\.,:;]\s)',
+                                   '*' => '(?<=\S|^)(?<!\*)\*(?!\*)',
+                                   '_' => '(?<=\S|^)(?<!_)_(?!_)',
+                                   );
 
     /**
-     * @const array List of possible strong tag regex patterns
+     * @var array List of possible strong tag regex patterns
      */
-    const STRONG_REGEX_LIST = array(''   => '(?:(?<!\*)\*\*(?!\*)|(?<!_)__(?!_))(?=\S|$)(?![\.,:;]\s)',
-                                    '**' => '(?<=\S|^)(?<!\*)\*\*(?!\*)',
-                                    '__' => '(?<=\S|^)(?<!_)__(?!_)',
-                                    );
+    protected $strongRegexList = array(''   => '(?:(?<!\*)\*\*(?!\*)|(?<!_)__(?!_))(?=\S|$)(?![\.,:;]\s)',
+                                        '**' => '(?<=\S|^)(?<!\*)\*\*(?!\*)',
+                                        '__' => '(?<=\S|^)(?<!_)__(?!_)',
+                                        );
 
     /**
-     * @const array List of possible strong tag regex patterns
+     * @var array List of possible strong tag regex patterns
      */
-    const EM_AND_STRONG_REGEX_LIST = array(''    => '(?:(?<!\*)\*\*\*(?!\*)|(?<!_)___(?!_))(?=\S|$)(?![\.,:;]\s)',
-                                           '***' => '(?<=\S|^)(?<!\*)\*\*\*(?!\*)',
-                                           '___' => '(?<=\S|^)(?<!_)___(?!_)',
-                                           );
+    protected $emAndStrongRegexList = array(''    => '(?:(?<!\*)\*\*\*(?!\*)|(?<!_)___(?!_))(?=\S|$)(?![\.,:;]\s)',
+                                            '***' => '(?<=\S|^)(?<!\*)\*\*\*(?!\*)',
+                                            '___' => '(?<=\S|^)(?<!_)___(?!_)',
+                                            );
 
     /**
      * @var array List of document level elements gamut
@@ -248,11 +248,11 @@ class Markdown
     protected function prepareItalicsAndBold()
     {
         $emAndStrongRegexList = array();
-        foreach (self::EM_REGEX_LIST as $emIdentifier => $emRegex) {
-            foreach (self::STRONG_REGEX_LIST as $strongIdentifier => $strongRegex) {
+        foreach ($this->emRegexList as $emIdentifier => $emRegex) {
+            foreach ($this->strongRegexList as $strongIdentifier => $strongRegex) {
                 $tokenRegexList = array();
-                if (isset(self::EM_AND_STRONG_REGEX_LIST[$emIdentifier . $strongIdentifier])) {
-                    $tokenRegexList[] = self::EM_AND_STRONG_REGEX_LIST[$emIdentifier . $strongIdentifier];
+                if (isset($this->emAndStrongRegexList[$emIdentifier . $strongIdentifier])) {
+                    $tokenRegexList[] = $this->emAndStrongRegexList[$emIdentifier . $strongIdentifier];
                 }
                 $tokenRegexList[] = $emRegex;
                 $tokenRegexList[] = $strongRegex;
@@ -272,7 +272,7 @@ class Markdown
      *
      * @return string The parsed text
      */
-    public function transform($text)
+    public function parse($text)
     {
         // first let's normalize the text
         $text = $this->removeBom($text);
