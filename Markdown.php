@@ -77,6 +77,11 @@ class Markdown
     const MAX_NESTED_BRACKETS = 6;
 
     /**
+     * @const int Max nested URL parenthesis
+     */
+    const MAX_NESTED_URL_PARENTHESIS = 4;
+
+    /**
      * @const array List of possible em tag regex patterns
      */
     const EM_REGEX_LIST = array(''  => '(?:(?<!\*)\*(?!\*)|(?<!_)_(?!_))(?=\S|$)(?![\.,:;]\s)',
@@ -131,6 +136,11 @@ class Markdown
     protected $nestedBracketsRegex;
 
     /**
+     * @var string Nested brackets regex pattern
+     */
+    protected $nestedUrlParenthesisRegex;
+
+    /**
      * Create instance
      *
      * @return void
@@ -143,6 +153,9 @@ class Markdown
 
         $this->nestedBracketsRegex = str_repeat('(?>[^\[\]]+|\[', self::MAX_NESTED_BRACKETS);
         $this->nestedBracketsRegex.= str_repeat('\])*', self::MAX_NESTED_BRACKETS);
+
+        $this->nestedUrlParenthesisRegex = str_repeat('(?>[^()\s]+|\(', self::MAX_NESTED_URL_PARENTHESIS);
+        $this->nestedUrlParenthesisRegex.= str_repeat('(?>\)))*', self::MAX_NESTED_URL_PARENTHESIS);
     }
 
     /**
@@ -184,12 +197,6 @@ class Markdown
         return $emAndStrongRegexList;
     }
 
-	# Regex to match balanced [brackets].
-	# Needed to insert a maximum bracked depth while converting to PHP.
-
-
-	var $nested_url_parenthesis_depth = 4;
-	var $nested_url_parenthesis_re;
 
 	# Table of hash values for escaped characters:
 	var $escape_chars = '\`*_{}[]()>#+-.!';
@@ -206,12 +213,6 @@ class Markdown
 
     public function __constructx()
     {
-
-
-        $this->nested_url_parenthesis_re =
-            str_repeat('(?>[^()\s]+|\(', $this->nested_url_parenthesis_depth).
-            str_repeat('(?>\)))*', $this->nested_url_parenthesis_depth);
-
         $this->escape_chars_re = '['.preg_quote($this->escape_chars).']';
 
         # Sort document, block, and span gamut in ascendent priority order.
@@ -656,7 +657,7 @@ class Markdown
 				(?:
 					<(.+?)>	# href = $3
 				|
-					('.$this->nested_url_parenthesis_re.')	# href = $4
+					('.$this->nestedUrlParenthesisRegex.')	# href = $4
 				)
 				[ \n]*
 				(			# $5
@@ -781,7 +782,7 @@ class Markdown
 				(?:
 					<(\S*)>	# src url = $3
 				|
-					('.$this->nested_url_parenthesis_re.')	# src url = $4
+					('.$this->nestedUrlParenthesisRegex.')	# src url = $4
 				)
 				[ \n]*
 				(			# $5
