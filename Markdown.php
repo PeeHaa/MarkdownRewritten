@@ -186,11 +186,21 @@ class Markdown
     protected $escapeCharsRegex;
 
     /**
+     * @var bool Whether HTML markup is disabled
+     */
+    protected $disabledHtml;
+
+    /**
+     * @var bool Whether HTML entities are disabled
+     */
+    protected $disabledEntities;
+
+    /**
      * Initializes variables used throughout the class
      *
      * @return void
      */
-    public function __construct()
+    public function __construct($htmlEnabled = true, $entitiesEnabled = true)
     {
         $this->initializeAndCleanUp();
 
@@ -207,6 +217,9 @@ class Markdown
         asort($this->documentGamut);
         asort($this->blockGamut);
         asort($this->inlineGamut);
+
+        $this->disabledHtml = !$htmlEnabled;
+        $this->disabledEntities = !$entitiesEnabled;
     }
 
     /**
@@ -247,39 +260,6 @@ class Markdown
 
         return $emAndStrongRegexList;
     }
-
-	# Change to `true` to disallow markup or entities.
-	var $no_markup = false;
-	var $no_entities = false;
-
-	# Predefined urls and titles for reference links and images.
-	var $predef_urls = array();
-	var $predef_titles = array();
-
-
-	function setup() {
-	#
-	# Called before the transformation process starts to setup parser
-	# states.
-	#
-		# Clear global hashes.
-		$this->urls = $this->predef_urls;
-		$this->titles = $this->predef_titles;
-		$this->html_hashes = array();
-
-		$in_anchor = false;
-	}
-
-	function teardown() {
-	#
-	# Called after the transformation process to clear any variable
-	# which may be taking up memory unnecessarly.
-	#
-		$this->urls = array();
-		$this->titles = array();
-		$this->html_hashes = array();
-	}
-
 
 	function transform($text) {
 	#
@@ -365,7 +345,7 @@ class Markdown
 
 
 	function hashHTMLBlocks($text) {
-		if ($this->no_markup)  return $text;
+		if ($this->disabledHtml)  return $text;
 
 		$less_than_tab = self::TAB_WIDTH - 1;
 
@@ -1332,7 +1312,7 @@ class Markdown
 	# be encoded. Valid character entities are left alone unless the
 	# no-entities mode is set.
 	#
-		if ($this->no_entities) {
+		if ($this->disabledEntities) {
 			$text = str_replace('&', '&amp;', $text);
 		} else {
 			# Ampersand-encoding based entirely on Nat Irons's Amputator
@@ -1440,7 +1420,7 @@ class Markdown
 				|
 					(?<![`\\\\])
 					`+						# code span marker
-			'.( $this->no_markup ? '' : '
+			'.( $this->disabledHtml ? '' : '
 				|
 					<!--    .*?     -->		# comment
 				|
