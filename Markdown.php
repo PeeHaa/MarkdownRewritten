@@ -77,6 +77,11 @@ class Markdown
     const MAX_NESTED_BRACKETS = 6;
 
     /**
+     * @const string Chars to be scaped in regex patterns
+     */
+    const ESCAPE_CHARS = '\`*_{}[]()>#+-.!';
+
+    /**
      * @const int Max nested URL parenthesis
      */
     const MAX_NESTED_URL_PARENTHESIS = 4;
@@ -141,6 +146,11 @@ class Markdown
     protected $nestedUrlParenthesisRegex;
 
     /**
+     * @var string Escaped chars regex pattern
+     */
+    protected $escapeCharsRegex;
+
+    /**
      * Create instance
      *
      * @return void
@@ -156,6 +166,8 @@ class Markdown
 
         $this->nestedUrlParenthesisRegex = str_repeat('(?>[^()\s]+|\(', self::MAX_NESTED_URL_PARENTHESIS);
         $this->nestedUrlParenthesisRegex.= str_repeat('(?>\)))*', self::MAX_NESTED_URL_PARENTHESIS);
+
+        $this->escapeCharsRegex = '[' . preg_quote(self::ESCAPE_CHARS) . ']';
     }
 
     /**
@@ -197,11 +209,6 @@ class Markdown
         return $emAndStrongRegexList;
     }
 
-
-	# Table of hash values for escaped characters:
-	var $escape_chars = '\`*_{}[]()>#+-.!';
-	var $escape_chars_re;
-
 	# Change to `true` to disallow markup or entities.
 	var $no_markup = false;
 	var $no_entities = false;
@@ -213,8 +220,6 @@ class Markdown
 
     public function __constructx()
     {
-        $this->escape_chars_re = '['.preg_quote($this->escape_chars).']';
-
         # Sort document, block, and span gamut in ascendent priority order.
         asort($this->document_gamut);
         asort($this->block_gamut);
@@ -1444,7 +1449,7 @@ class Markdown
 
 		$span_re = '{
 				(
-					\\\\'.$this->escape_chars_re.'
+					\\\\'.$this->escapeCharsRegex.'
 				|
 					(?<![`\\\\])
 					`+						# code span marker
