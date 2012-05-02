@@ -126,6 +126,11 @@ class Markdown
     protected $inAnchor;
 
     /**
+     * @var string Nested brackets regex pattern
+     */
+    protected $nestedBracketsRegex;
+
+    /**
      * Create instance
      *
      * @return void
@@ -135,6 +140,9 @@ class Markdown
         $this->initializeAndCleanUp();
 
         $this->emAndStrongRegexList = $this->prepareItalicsAndBold();
+
+        $this->nestedBracketsRegex = str_repeat('(?>[^\[\]]+|\[', self::MAX_NESTED_BRACKETS);
+        $this->nestedBracketsRegex.= str_repeat('\])*', self::MAX_NESTED_BRACKETS);
     }
 
     /**
@@ -178,7 +186,7 @@ class Markdown
 
 	# Regex to match balanced [brackets].
 	# Needed to insert a maximum bracked depth while converting to PHP.
-	var $nested_brackets_re;
+
 
 	var $nested_url_parenthesis_depth = 4;
 	var $nested_url_parenthesis_re;
@@ -198,9 +206,7 @@ class Markdown
 
     public function __constructx()
     {
-        $this->nested_brackets_re =
-            str_repeat('(?>[^\[\]]+|\[', self::MAX_NESTED_BRACKETS).
-            str_repeat('\])*', self::MAX_NESTED_BRACKETS);
+
 
         $this->nested_url_parenthesis_re =
             str_repeat('(?>[^()\s]+|\(', $this->nested_url_parenthesis_depth).
@@ -624,7 +630,7 @@ class Markdown
 		$text = preg_replace_callback('{
 			(					# wrap whole match in $1
 			  \[
-				('.$this->nested_brackets_re.')	# link text = $2
+				('.$this->nestedBracketsRegex.')	# link text = $2
 			  \]
 
 			  [ ]?				# one optional space
@@ -643,7 +649,7 @@ class Markdown
 		$text = preg_replace_callback('{
 			(				# wrap whole match in $1
 			  \[
-				('.$this->nested_brackets_re.')	# link text = $2
+				('.$this->nestedBracketsRegex.')	# link text = $2
 			  \]
 			  \(			# literal paren
 				[ \n]*
@@ -746,7 +752,7 @@ class Markdown
 		$text = preg_replace_callback('{
 			(				# wrap whole match in $1
 			  !\[
-				('.$this->nested_brackets_re.')		# alt text = $2
+				('.$this->nestedBracketsRegex.')		# alt text = $2
 			  \]
 
 			  [ ]?				# one optional space
@@ -767,7 +773,7 @@ class Markdown
 		$text = preg_replace_callback('{
 			(				# wrap whole match in $1
 			  !\[
-				('.$this->nested_brackets_re.')		# alt text = $2
+				('.$this->nestedBracketsRegex.')		# alt text = $2
 			  \]
 			  \s?			# One optional whitespace character
 			  \(			# literal paren
