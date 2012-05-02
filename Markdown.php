@@ -105,10 +105,10 @@ class Markdown
     /**
      * @var array List of possible strong tag regex patterns
      */
-    protected $emAndStrongRegexList = array(''    => '(?:(?<!\*)\*\*\*(?!\*)|(?<!_)___(?!_))(?=\S|$)(?![\.,:;]\s)',
-                                            '***' => '(?<=\S|^)(?<!\*)\*\*\*(?!\*)',
-                                            '___' => '(?<=\S|^)(?<!_)___(?!_)',
-                                            );
+    protected $emAndStrongRegexBaseList = array(''    => '(?:(?<!\*)\*\*\*(?!\*)|(?<!_)___(?!_))(?=\S|$)(?![\.,:;]\s)',
+                                                '***' => '(?<=\S|^)(?<!\*)\*\*\*(?!\*)',
+                                                '___' => '(?<=\S|^)(?<!_)___(?!_)',
+                                                );
 
     /**
      * @var array List of document level elements gamut
@@ -251,8 +251,8 @@ class Markdown
         foreach ($this->emRegexList as $emIdentifier => $emRegex) {
             foreach ($this->strongRegexList as $strongIdentifier => $strongRegex) {
                 $tokenRegexList = array();
-                if (isset($this->emAndStrongRegexList[$emIdentifier . $strongIdentifier])) {
-                    $tokenRegexList[] = $this->emAndStrongRegexList[$emIdentifier . $strongIdentifier];
+                if (isset($this->emAndStrongRegexBaseList[$emIdentifier . $strongIdentifier])) {
+                    $tokenRegexList[] = $this->emAndStrongRegexBaseList[$emIdentifier . $strongIdentifier];
                 }
                 $tokenRegexList[] = $emRegex;
                 $tokenRegexList[] = $strongRegex;
