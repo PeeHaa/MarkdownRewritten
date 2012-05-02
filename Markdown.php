@@ -198,6 +198,9 @@ class Markdown
     /**
      * Initializes variables used throughout the class
      *
+     * @param bool $htmlEnabled Whether HTML is allowed
+     * @param bool $entitiesEnabled Whether entities are allowed
+     *
      * @return void
      */
     public function __construct($htmlEnabled = true, $entitiesEnabled = true)
@@ -261,45 +264,67 @@ class Markdown
         return $emAndStrongRegexList;
     }
 
-	function transform($text) {
-	#
-	# Main function. Performs some preprocessing on the input text
-	# and pass it through the document gamut.
-	#
-		$this->setup();
+    /**
+     * Parses the text from Markdown to nice HTML
+     * First it normalizes the text and after that process the text
+     *
+     * @param string $text The text to parse
+     *
+     * @return string The parsed text
+     */
+    public function transform($text)
+    {
+        $text = $this->removeBom($text);
 
-		# Remove UTF-8 BOM and marker character in input, if present.
-		$text = preg_replace('{^\xEF\xBB\xBF|\x1A}', '', $text);
+        $text = $this->normalizeLinebreaks($text);
 
-		# Standardize line endings:
-		#   DOS to Unix and Mac to Unix
-		$text = preg_replace('{\r\n?}', "\n", $text);
+        # Convert all tabs to spaces.
+        $text = $this->detab($text);
 
-		# Make sure $text ends with a couple of newlines:
-		$text .= "\n\n";
+        # Turn block-level HTML blocks into hash entries
+        $text = $this->hashHTMLBlocks($text);
 
-		# Convert all tabs to spaces.
-		$text = $this->detab($text);
+        # Strip any lines consisting only of spaces and tabs.
+        # This makes subsequent regexen easier to write, because we can
+        # match consecutive blank lines with /\n+/ instead of something
+        # contorted like /[ ]*\n+/ .
+        $text = preg_replace('/^[ ]+$/m', '', $text);
 
-		# Turn block-level HTML blocks into hash entries
-		$text = $this->hashHTMLBlocks($text);
+        # Run document gamut methods.
+        foreach ($this->documentGamut as $method => $priority) {
+            $text = $this->$method($text);
+        }
 
-		# Strip any lines consisting only of spaces and tabs.
-		# This makes subsequent regexen easier to write, because we can
-		# match consecutive blank lines with /\n+/ instead of something
-		# contorted like /[ ]*\n+/ .
-		$text = preg_replace('/^[ ]+$/m', '', $text);
+        $this->initializeAndCleanUp();
 
-		# Run document gamut methods.
-		foreach ($this->documentGamut as $method => $priority) {
-			$text = $this->$method($text);
-		}
+        return $text . "\n";
+    }
 
-		$this->teardown();
+    /**
+     * Removes the BOM characters
+     *
+     * @param string $text The text
+     *
+     * @return string The text without a BOM character
+     */
+    public function removeBom($text)
+    {
+        return preg_replace('{^\xEF\xBB\xBF|\x1A}', '', $text);
+    }
 
-		return $text . "\n";
-	}
-
+    /**
+     * Normalizes linebreaks
+     * Replaces all linebreaks with UNIX style linebreaks and adds some linebreaks
+     * at the end of the text
+     *
+     * @param string $text The text
+     *
+     * @return string The text with normalized linebreaks
+     */
+    public function normalizeLinebreaks($text)
+    {
+        return preg_replace('{\r\n?}', "\n", $text) . "\n\n";
+    }
 
 	function stripLinkDefinitions($text) {
 	#
