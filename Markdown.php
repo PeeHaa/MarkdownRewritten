@@ -2,6 +2,8 @@
 /**
  * Markdown Rewritten - A rewrite of the PHP Markdown code
  *
+ * PHP 5.3
+ *
  * @author     Pieter Hordijk <info@pieterhordijk.com> (Markdown Rewritten)
  * @copyright  Copyright (c) 2012 Pieter Hordijk
  * @author     Michel Fortin <http://michelf.com/projects/php-markdown> (PHP Markdown)
@@ -44,21 +46,6 @@
  *             of such damage.
  * @version    1.0.0
  */
-function Markdown($text) {
-#
-# Initialize the parser and return the result of its transform method.
-#
-	# Setup static parser variable.
-	static $parser;
-	if (!isset($parser)) {
-		$parser_class = MARKDOWN_PARSER_CLASS;
-		$parser = new $parser_class;
-	}
-
-	# Transform text using parser.
-	return $parser->transform($text);
-}
-
 class Markdown
 {
     /**
@@ -279,7 +266,7 @@ class Markdown
         $text = $this->normalizeLinebreaks($text);
         $text = $this->normalizeTabs($text);
 
-        # Turn block-level HTML blocks into hash entries
+        // hash HTML elements
         $text = $this->hashHTMLBlocks($text);
 
         # Strip any lines consisting only of spaces and tabs.
@@ -334,7 +321,7 @@ class Markdown
      */
     protected function normalizeTabs($text)
     {
-        return preg_replace_callback('/^.*\t.*$/m', array(&$this, '_detab_callback'), $text);
+        return preg_replace_callback('/^.*\t.*$/m', array(&$this, 'normalizeTabsCallback'), $text);
     }
 
     /**
@@ -344,7 +331,8 @@ class Markdown
      *
      * @return string The text with normalized tab characters
      */
-    protected function _detab_callback($matches) {
+    protected function normalizeTabsCallback($matches)
+    {
         $line = $matches[0];
 
         $blocks = explode("\t", $line);
@@ -362,195 +350,214 @@ class Markdown
         return $line;
     }
 
+    /**
+     * Hash all block level HTML tags (header, ul, table etc)
+     *
+     * @param string $text The text in which we want to hash elements
+     *
+     * @return string The text with hahsed elements
+     */
+    protected function hashHTMLBlocks($text) {
+        if ($this->disabledHtml) {
+            return $text;
+        }
 
+        $lessThanTab = self::TAB_WIDTH - 1;
 
+        // define elements which can both be block or inline level
+        $possibleBlockElements = 'ins|del';
 
-	function stripLinkDefinitions($text) {
-	#
-	# Strips link definitions from text, stores the URLs and titles in
-	# hash references.
-	#
-		$less_than_tab = self::TAB_WIDTH - 1;
+        // define elements which can are always block level
+        $definiteBlockElements = 'p|div|h[1-6]|blockquote|pre|table|dl|ol|ul|address|';
+        $definiteBlockElements.= 'script|noscript|form|fieldset|iframe|math';
 
-		# Link defs are in the form: ^[id]: url "optional title"
-		$text = preg_replace_callback('{
-							^[ ]{0,'.$less_than_tab.'}\[(.+)\][ ]?:	# id = $1
-							  [ ]*
-							  \n?				# maybe *one* newline
-							  [ ]*
-							(?:
-							  <(.+?)>			# url = $2
-							|
-							  (\S+?)			# url = $3
-							)
-							  [ ]*
-							  \n?				# maybe one newline
-							  [ ]*
-							(?:
-								(?<=\s)			# lookbehind for whitespace
-								["(]
-								(.*?)			# title = $4
-								[")]
-								[ ]*
-							)?	# title is optional
-							(?:\n+|\Z)
-			}xm',
-			array(&$this, '_stripLinkDefinitions_callback'),
-			$text);
-		return $text;
-	}
-	function _stripLinkDefinitions_callback($matches) {
-		$link_id = strtolower($matches[1]);
-		$url = $matches[2] == '' ? $matches[3] : $matches[2];
-		$this->urls[$link_id] = $url;
-		$this->titles[$link_id] =& $matches[4];
-		return ''; # String that will replace the block
-	}
+        # Regular expression for the content of a block tag.
+        $nested_tags_level = 4;
+        $attr = '
+            (?>             # optional tag attributes
+              \s            # starts with whitespace
+              (?>
+                [^>"/]+     # text outside quotes
+              |
+                /+(?!>)     # slash not followed by ">"
+              |
+                "[^"]*"     # text inside double quotes (tolerate ">")
+              |
+                \'[^\']*\'  # text inside single quotes (tolerate ">")
+              )*
+            )?
+            ';
+        $content =
+            str_repeat('
+                (?>
+                  [^<]+         # content without tag
+                |
+                  <\2           # nested opening tag
+                    '.$attr.'   # attributes
+                    (?>
+                      />
+                    |
+                      >', $nested_tags_level).  // end of opening tag
+                      '.*?'.                    // last level nested tag content
+            str_repeat('
+                      </\2\s*>  # closing nested tag
+                    )
+                  |
+                    <(?!/\2\s*> # other tags with a different name
+                  )
+                )*',
+                $nested_tags_level);
 
+        $content2 = str_replace('\2', '\3', $content);
 
-	function hashHTMLBlocks($text) {
-		if ($this->disabledHtml)  return $text;
+        /**
+         * First, look for nested blocks, e.g.:
+         *  <div>
+         *    <div>
+         *      tags for inner block must be indented.
+         *    </div>
+         *  </div>
+         *
+         * The outermost tags must start at the left margin for this to match, and
+         * the inner nested divs must be indented.
+         * We need to do this before the next, more liberal match, because the next
+         * match will start at the first `<div>` and stop at the first `</div>`.
+         */
+        $text = preg_replace_callback('{(?>
+            (?>
+                (?<=\n\n)       # Starting after a blank line
+                |               # or
+                \A\n?           # the beginning of the doc
+            )
+            (                   # save in $1
 
-		$less_than_tab = self::TAB_WIDTH - 1;
+              # Match from `\n<tag>` to `</tag>\n`, handling nested tags
+              # in between.
 
-		# Hashify HTML blocks:
-		# We only want to do this for block-level HTML tags, such as headers,
-		# lists, and tables. That's because we still want to wrap <p>s around
-		# "paragraphs" that are wrapped in non-block-level tags, such as anchors,
-		# phrase emphasis, and spans. The list of tags we're looking for is
-		# hard-coded:
-		#
-		# *  List "a" is made of tags which can be both inline or block-level.
-		#    These will be treated block-level when the start tag is alone on
-		#    its line, otherwise they're not matched here and will be taken as
-		#    inline later.
-		# *  List "b" is made of tags which are always block-level;
-		#
-		$block_tags_a_re = 'ins|del';
-		$block_tags_b_re = 'p|div|h[1-6]|blockquote|pre|table|dl|ol|ul|address|'.
-						   'script|noscript|form|fieldset|iframe|math';
+                        [ ]{0,'.$lessThanTab.'}
+                        <('.$definiteBlockElements.')   # start tag = $2
+                        '.$attr.'>                      # attributes followed by > and \n
+                        '.$content.'                    # content, support nesting
+                        </\2>                           # the matching end tag
+                        [ ]*                            # trailing spaces/tabs
+                        (?=\n+|\Z)                      # followed by a newline or end of document
 
-		# Regular expression for the content of a block tag.
-		$nested_tags_level = 4;
-		$attr = '
-			(?>				# optional tag attributes
-			  \s			# starts with whitespace
-			  (?>
-				[^>"/]+		# text outside quotes
-			  |
-				/+(?!>)		# slash not followed by ">"
-			  |
-				"[^"]*"		# text inside double quotes (tolerate ">")
-			  |
-				\'[^\']*\'	# text inside single quotes (tolerate ">")
-			  )*
-			)?
-			';
-		$content =
-			str_repeat('
-				(?>
-				  [^<]+			# content without tag
-				|
-				  <\2			# nested opening tag
-					'.$attr.'	# attributes
-					(?>
-					  />
-					|
-					  >', $nested_tags_level).	# end of opening tag
-					  '.*?'.					# last level nested tag content
-			str_repeat('
-					  </\2\s*>	# closing nested tag
-					)
-				  |
-					<(?!/\2\s*>	# other tags with a different name
-				  )
-				)*',
-				$nested_tags_level);
-		$content2 = str_replace('\2', '\3', $content);
+            | # Special version for tags of group a.
 
-		# First, look for nested blocks, e.g.:
-		# 	<div>
-		# 		<div>
-		# 		tags for inner block must be indented.
-		# 		</div>
-		# 	</div>
-		#
-		# The outermost tags must start at the left margin for this to match, and
-		# the inner nested divs must be indented.
-		# We need to do this before the next, more liberal match, because the next
-		# match will start at the first `<div>` and stop at the first `</div>`.
-		$text = preg_replace_callback('{(?>
-			(?>
-				(?<=\n\n)		# Starting after a blank line
-				|				# or
-				\A\n?			# the beginning of the doc
-			)
-			(						# save in $1
+                        [ ]{0,'.$lessThanTab.'}
+                        <('.$possibleBlockElements.')   # start tag = $3
+                        '.$attr.'>[ ]*\n                # attributes followed by >
+                        '.$content2.'                   # content, support nesting
+                        </\3>                           # the matching end tag
+                        [ ]*                            # trailing spaces/tabs
+                        (?=\n+|\Z)                      # followed by a newline or end of document
 
-			  # Match from `\n<tag>` to `</tag>\n`, handling nested tags
-			  # in between.
+            | # Special case just for <hr />. It was easier to make a special
+              # case than to make the other regex more complicated.
 
-						[ ]{0,'.$less_than_tab.'}
-						<('.$block_tags_b_re.')# start tag = $2
-						'.$attr.'>			# attributes followed by > and \n
-						'.$content.'		# content, support nesting
-						</\2>				# the matching end tag
-						[ ]*				# trailing spaces/tabs
-						(?=\n+|\Z)	# followed by a newline or end of document
+                        [ ]{0,'.$lessThanTab.'}
+                        <(hr)               # start tag = $2
+                        '.$attr.'           # attributes
+                        /?>                 # the matching end tag
+                        [ ]*
+                        (?=\n{2,}|\Z)       # followed by a blank line or end of document
 
-			| # Special version for tags of group a.
+            | # Special case for standalone HTML comments:
 
-						[ ]{0,'.$less_than_tab.'}
-						<('.$block_tags_a_re.')# start tag = $3
-						'.$attr.'>[ ]*\n	# attributes followed by >
-						'.$content2.'		# content, support nesting
-						</\3>				# the matching end tag
-						[ ]*				# trailing spaces/tabs
-						(?=\n+|\Z)	# followed by a newline or end of document
+                    [ ]{0,'.$lessThanTab.'}
+                    (?s:
+                        <!-- .*? -->
+                    )
+                    [ ]*
+                    (?=\n{2,}|\Z)       # followed by a blank line or end of document
 
-			| # Special case just for <hr />. It was easier to make a special
-			  # case than to make the other regex more complicated.
+            | # PHP and ASP-style processor instructions (<? and <%)
 
-						[ ]{0,'.$less_than_tab.'}
-						<(hr)				# start tag = $2
-						'.$attr.'			# attributes
-						/?>					# the matching end tag
-						[ ]*
-						(?=\n{2,}|\Z)		# followed by a blank line or end of document
+                    [ ]{0,'.$lessThanTab.'}
+                    (?s:
+                        <([?%])         # $2
+                        .*?
+                        \2>
+                    )
+                    [ ]*
+                    (?=\n{2,}|\Z)       # followed by a blank line or end of document
 
-			| # Special case for standalone HTML comments:
+            )
+            )}Sxmi', array(&$this, 'hashHTMLBlocksCallback'), $text);
 
-					[ ]{0,'.$less_than_tab.'}
-					(?s:
-						<!-- .*? -->
-					)
-					[ ]*
-					(?=\n{2,}|\Z)		# followed by a blank line or end of document
+        return $text;
+    }
 
-			| # PHP and ASP-style processor instructions (<? and <%)
+    /**
+     * Callback function for the preg function in hashHtmlBlocks
+     *
+     * @param array $matches The matches we want callback function to replace
+     *
+     * @return string The text with replaced data
+     */
+    protected function hashHTMLBlocksCallback($matches)
+    {
+        $text = $matches[1];
+        $key  = $this->hashBlock($text);
 
-					[ ]{0,'.$less_than_tab.'}
-					(?s:
-						<([?%])			# $2
-						.*?
-						\2>
-					)
-					[ ]*
-					(?=\n{2,}|\Z)		# followed by a blank line or end of document
+        return "\n\n$key\n\n";
+    }
 
-			)
-			)}Sxmi',
-			array(&$this, '_hashHTMLBlocks_callback'),
-			$text);
+    /**
+     * Strips link definitions from text and adds them them together with the
+     * titles to array
+     *
+     * @param string $text The text to find the links in
+     *
+     * @return string The text without the links
+     */
+    protected function stripLinkDefinitions($text)
+    {
+        $lessThanTab = self::TAB_WIDTH - 1;
 
-		return $text;
-	}
-	function _hashHTMLBlocks_callback($matches) {
-		$text = $matches[1];
-		$key  = $this->hashBlock($text);
-		return "\n\n$key\n\n";
-	}
+        $text = preg_replace_callback('{
+                            ^[ ]{0,'.$lessThanTab.'}\[(.+)\][ ]?: # id = $1
+                              [ ]*
+                              \n?               # maybe *one* newline
+                              [ ]*
+                            (?:
+                              <(.+?)>           # url = $2
+                            |
+                              (\S+?)            # url = $3
+                            )
+                              [ ]*
+                              \n?               # maybe one newline
+                              [ ]*
+                            (?:
+                                (?<=\s)         # lookbehind for whitespace
+                                ["(]
+                                (.*?)           # title = $4
+                                [")]
+                                [ ]*
+                            )?  # title is optional
+                            (?:\n+|\Z)
+            }xm', array(&$this, 'stripLinkDefinitionsCallback'), $text);
 
+        return $text;
+    }
+
+    /**
+     * Callback function for the preg function in stripLinkDefinitions
+     *
+     * @param array $matches The matches we want callback function to replace
+     *
+     * @return string Empty string because we want to remove the links
+     */
+    protected function stripLinkDefinitionsCallback($matches)
+    {
+        $linkId = strtolower($matches[1]);
+
+        $url = $matches[2] == '' ? $matches[3] : $matches[2];
+        $this->urls[$linkId] = $url;
+        $this->titles[$linkId] =& $matches[4];
+
+        return '';
+    }
 
 	function hashPart($text, $boundary = 'X') {
 	#
