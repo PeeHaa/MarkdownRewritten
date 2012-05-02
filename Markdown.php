@@ -72,6 +72,40 @@ class Markdown
     const EMPTY_ELEMENT_SUFFIX = '>';
 
     /**
+     * @const int Max nested brackets
+     */
+    const MAX_NESTED_BRACKETS = 6;
+
+    /**
+     * @const array List of possible em tag regex patterns
+     */
+    const EM_REGEX_LIST = array(''  => '(?:(?<!\*)\*(?!\*)|(?<!_)_(?!_))(?=\S|$)(?![\.,:;]\s)',
+                                '*' => '(?<=\S|^)(?<!\*)\*(?!\*)',
+                                '_' => '(?<=\S|^)(?<!_)_(?!_)',
+                                );
+
+    /**
+     * @const array List of possible strong tag regex patterns
+     */
+    const STRONG_REGEX_LIST = array(''   => '(?:(?<!\*)\*\*(?!\*)|(?<!_)__(?!_))(?=\S|$)(?![\.,:;]\s)',
+                                    '**' => '(?<=\S|^)(?<!\*)\*\*(?!\*)',
+                                    '__' => '(?<=\S|^)(?<!_)__(?!_)',
+                                    );
+
+    /**
+     * @const array List of possible strong tag regex patterns
+     */
+    const EM_AND_STRONG_REGEX_LIST = array(''    => '(?:(?<!\*)\*\*\*(?!\*)|(?<!_)___(?!_))(?=\S|$)(?![\.,:;]\s)',
+                                           '***' => '(?<=\S|^)(?<!\*)\*\*\*(?!\*)',
+                                           '___' => '(?<=\S|^)(?<!_)___(?!_)',
+                                           );
+
+    /**
+     * @var array List of al lregex patterns to match em and strong tags
+     */
+    protected $emAndStrongRegexList;
+
+    /**
      * @var array The URL found in the text
      */
     protected $urls;
@@ -98,7 +132,9 @@ class Markdown
      */
     public function __construct()
     {
-        $this->cleanUp();
+        $this->initializeAndCleanUp();
+
+        $this->emAndStrongRegexList = $this->prepareItalicsAndBold();
     }
 
     /**
@@ -107,7 +143,7 @@ class Markdown
      *
      * @return void
      */
-    protected function cleanUp()
+    protected function initializeAndCleanUp()
     {
         $this->urls = array();
         $this->titles = array();
@@ -116,9 +152,32 @@ class Markdown
         $this->inAnchor = false;
     }
 
+    /**
+     * Builds the regex patterns to match em and strong tags
+     *
+     * @return array The list of regex patterns
+     */
+    protected function prepareItalicsAndBold()
+    {
+        $emAndStrongRegexList = array();
+        foreach (self::EM_REGEX_LIST as $emIdentifier => $emRegex) {
+            foreach (self::STRONG_REGEX_LIST as $strongIdentifier => $strongRegex) {
+                $tokenRegexList = array();
+                if (isset(self::EM_AND_STRONG_REGEX_LIST[$emIdentifier . $strongIdentifier])) {
+                    $tokenRegexList[] = self::EM_AND_STRONG_REGEX_LIST[$emIdentifier . $strongIdentifier];
+                }
+                $tokenRegexList[] = $emRegex;
+                $tokenRegexList[] = $strongRegex;
+
+                $emAndStrongRegexList[$emIdentifier . $strongIdentifier] = '{(' . implode('|', $tokenRegexList) . ')}';
+            }
+        }
+
+        return $emAndStrongRegexList;
+    }
+
 	# Regex to match balanced [brackets].
 	# Needed to insert a maximum bracked depth while converting to PHP.
-	var $nested_brackets_depth = 6;
 	var $nested_brackets_re;
 
 	var $nested_url_parenthesis_depth = 4;
@@ -139,12 +198,9 @@ class Markdown
 
     public function __constructx()
     {
-        $this->_initDetab();
-        $this->prepareItalicsAndBold();
-
         $this->nested_brackets_re =
-            str_repeat('(?>[^\[\]]+|\[', $this->nested_brackets_depth).
-            str_repeat('\])*', $this->nested_brackets_depth);
+            str_repeat('(?>[^\[\]]+|\[', self::MAX_NESTED_BRACKETS).
+            str_repeat('\])*', self::MAX_NESTED_BRACKETS);
 
         $this->nested_url_parenthesis_re =
             str_repeat('(?>[^()\s]+|\(', $this->nested_url_parenthesis_depth).
@@ -1026,44 +1082,10 @@ class Markdown
 	}
 
 
-	var $em_relist = array(
-		''  => '(?:(?<!\*)\*(?!\*)|(?<!_)_(?!_))(?=\S|$)(?![\.,:;]\s)',
-		'*' => '(?<=\S|^)(?<!\*)\*(?!\*)',
-		'_' => '(?<=\S|^)(?<!_)_(?!_)',
-		);
-	var $strong_relist = array(
-		''   => '(?:(?<!\*)\*\*(?!\*)|(?<!_)__(?!_))(?=\S|$)(?![\.,:;]\s)',
-		'**' => '(?<=\S|^)(?<!\*)\*\*(?!\*)',
-		'__' => '(?<=\S|^)(?<!_)__(?!_)',
-		);
-	var $em_strong_relist = array(
-		''    => '(?:(?<!\*)\*\*\*(?!\*)|(?<!_)___(?!_))(?=\S|$)(?![\.,:;]\s)',
-		'***' => '(?<=\S|^)(?<!\*)\*\*\*(?!\*)',
-		'___' => '(?<=\S|^)(?<!_)___(?!_)',
-		);
-	var $em_strong_prepared_relist;
 
-	function prepareItalicsAndBold() {
-	#
-	# Prepare regular expressions for searching emphasis tokens in any
-	# context.
-	#
-		foreach ($this->em_relist as $em => $em_re) {
-			foreach ($this->strong_relist as $strong => $strong_re) {
-				# Construct list of allowed token expressions.
-				$token_relist = array();
-				if (isset($this->em_strong_relist["$em$strong"])) {
-					$token_relist[] = $this->em_strong_relist["$em$strong"];
-				}
-				$token_relist[] = $em_re;
-				$token_relist[] = $strong_re;
 
-				# Construct master expression from list.
-				$token_re = '{('. implode('|', $token_relist) .')}';
-				$this->em_strong_prepared_relist["$em$strong"] = $token_re;
-			}
-		}
-	}
+
+
 
 	function doItalicsAndBold($text) {
 		$token_stack = array('');
@@ -1077,7 +1099,7 @@ class Markdown
 			# Get prepared regular expression for seraching emphasis tokens
 			# in current context.
 			#
-			$token_re = $this->em_strong_prepared_relist["$em$strong"];
+			$token_re = $this->emAndStrongRegexList["$em$strong"];
 
 			#
 			# Each loop iteration search for the next emphasis token.
