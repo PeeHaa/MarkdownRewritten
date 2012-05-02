@@ -274,12 +274,10 @@ class Markdown
      */
     public function transform($text)
     {
+        // first let's normalize the text
         $text = $this->removeBom($text);
-
         $text = $this->normalizeLinebreaks($text);
-
-        # Convert all tabs to spaces.
-        $text = $this->detab($text);
+        $text = $this->normalizeTabs($text);
 
         # Turn block-level HTML blocks into hash entries
         $text = $this->hashHTMLBlocks($text);
@@ -325,6 +323,47 @@ class Markdown
     {
         return preg_replace('{\r\n?}', "\n", $text) . "\n\n";
     }
+
+    /**
+     * Normalizes tabs
+     * Replaces all tab characters with spaces defined in the TAB_WIDTH const
+     *
+     * @param string $text The text
+     *
+     * @return string The text with normalized tab characters
+     */
+    protected function normalizeTabs($text)
+    {
+        return preg_replace_callback('/^.*\t.*$/m', array(&$this, '_detab_callback'), $text);
+    }
+
+    /**
+     * Callback function to replace tabs by spaces
+     *
+     * @param array $matches The matches returned by the preg_replace call
+     *
+     * @return string The text with normalized tab characters
+     */
+    protected function _detab_callback($matches) {
+        $line = $matches[0];
+
+        $blocks = explode("\t", $line);
+        $line = $blocks[0];
+
+        // prevent adding the first block twice
+        unset($blocks[0]);
+
+        foreach ($blocks as $block) {
+            $amount = self::TAB_WIDTH - mb_strlen($line, 'UTF-8') % self::TAB_WIDTH;
+
+            $line.= str_repeat(' ', $amount) . $block;
+        }
+
+        return $line;
+    }
+
+
+
 
 	function stripLinkDefinitions($text) {
 	#
@@ -1518,36 +1557,6 @@ class Markdown
 	#
 		return preg_replace('/^(\t|[ ]{1,'.self::TAB_WIDTH.'})/m', '', $text);
 	}
-
-	function detab($text) {
-	#
-	# Replace tabs with the appropriate amount of space.
-	#
-		# For each line we separate the line in blocks delemited by
-		# tab characters. Then we reconstruct every line by adding the
-		# appropriate number of space between each blocks.
-
-		$text = preg_replace_callback('/^.*\t.*$/m',
-			array(&$this, '_detab_callback'), $text);
-
-		return $text;
-	}
-	function _detab_callback($matches) {
-		$line = $matches[0];
-
-		# Split in blocks.
-		$blocks = explode("\t", $line);
-		# Add each blocks to the line.
-		$line = $blocks[0];
-		unset($blocks[0]); # Do not add first block twice.
-		foreach ($blocks as $block) {
-			# Calculate amount of space, insert spaces, insert block.
-			$amount = self::TAB_WIDTH - mb_strlen($line, 'UTF-8') % self::TAB_WIDTH;
-			$line .= str_repeat(" ", $amount) . $block;
-		}
-		return $line;
-	}
-
 
 	function unhash($text) {
 	#
