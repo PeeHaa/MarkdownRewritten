@@ -7,7 +7,9 @@ Which in turn is a port to PHP of the original Markdown by [John Gruber][3].
 
 The original port works great, however the code is a bit of an outdated mess (sorry Michel).
 
-In it's current form this cannot be used yet until I'm finished with the rewrite.
+Although I have just started with the rewrite it can already be used in projects, however  
+please note that the class is subject to change and that things may break in  
+the future.
 
 All credits should go to both John Gruber and Michel Fortin for doing all the work  
 since I'm just cleaning it up.
