@@ -112,7 +112,7 @@ class Markdown
      *            so it can easily be sorted
      */
     protected $blockGamut = array('doHeaders'         => 10,
-                                  'doHorizontalRules' => 20,
+                                  'processHorizontalRules' => 20,
                                   'doLists'           => 40,
                                   'doCodeBlocks'      => 50,
                                   'doBlockQuotes'     => 60,
@@ -680,23 +680,29 @@ class Markdown
         return $text;
     }
 
-
-	function doHorizontalRules($text) {
-		# Do Horizontal Rules:
-		return preg_replace(
-			'{
-				^[ ]{0,3}	# Leading space
-				([-*_])		# $1: First marker
-				(?>			# Repeated marker group
-					[ ]{0,2}	# Zero, one, or two spaces.
-					\1			# Marker character
-				){2,}		# Group repeated at least twice
-				[ ]*		# Tailing spaces
-				$			# End of line.
-			}mx',
-			"\n".$this->hashBlockElement('<hr' . self::EMPTY_ELEMENT_SUFFIX) . "\n",
-			$text);
-	}
+    /**
+     * Parse horizontal rules
+     *
+     * @param string $text The text we are going to process
+     *
+     * @return string The text with the parsed horizontal rules
+     */
+    protected function processHorizontalRules($text)
+    {
+        return preg_replace(
+            '{
+                ^[ ]{0,3}       # Leading space
+                ([-*_])         # $1: First marker
+                (?>             # Repeated marker group
+                    [ ]{0,2}    # Zero, one, or two spaces.
+                    \1          # Marker character
+                ){2,}           # Group repeated at least twice
+                [ ]*            # Tailing spaces
+                $               # End of line.
+            }mx',
+            "\n".$this->hashBlockElement('<hr' . self::EMPTY_ELEMENT_SUFFIX) . "\n",
+            $text);
+    }
 
 
 	function runSpanGamut($text) {
