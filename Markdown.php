@@ -148,9 +148,17 @@ class Markdown
     protected $titles;
 
     /**
-     * @var array Used to hash HTML blocks
+     * @var array Used to keep track of hashed HTML blocks
      */
     protected $htmlHashes;
+
+    /**
+     * @var int The current index of the $htmlHashes array
+     *
+     * @todo Check the performance / functionality when dropping this
+     *       and use count(self::htmlHashes) instead
+     */
+    protected $currentHashIndex;
 
     /**
      * @var bool Status flag to avoid invalid nesting.
@@ -261,7 +269,7 @@ class Markdown
      */
     public function parse($text)
     {
-        $text = normalizeText($text);
+        $text = $this->normalizeText($text);
 
         // hash HTML elements
         $text = $this->hashHTMLBlocks($text);
@@ -512,7 +520,7 @@ class Markdown
     protected function hashHTMLBlocksCallback($matches)
     {
         $text = $matches[1];
-        $key  = $this->hashBlock($text);
+        $key  = $this->hashBlockElement($text);
 
         return "\n\n$key\n\n";
     }
@@ -573,33 +581,11 @@ class Markdown
         return '';
     }
 
-	function hashPart($text, $boundary = 'X') {
-	#
-	# Called whenever a tag must be hashed when a function insert an atomic
-	# element in the text stream. Passing $text to through this function gives
-	# a unique text-token which will be reverted back when calling unhash.
-	#
-	# The $boundary argument specify what character should be used to surround
-	# the token. By convension, "B" is used for block elements that needs not
-	# to be wrapped into paragraph tags at the end, ":" is used for elements
-	# that are word separators and "X" is used in the general case.
-	#
-		# Swap back any tag hash found in $text so we do not have to `unhash`
-		# multiple times at the end.
-		$text = $this->unhash($text);
-
-		# Then hash the block.
-		static $i = 0;
-		$key = "$boundary\x1A" . ++$i . $boundary;
-		$this->htmlHashes[$key] = $text;
-		return $key; # String that will replace the tag.
-	}
-
     /**
      * Hashes block level elements (this function is a shortcut
      * of doing self::hashPart($text, 'B'))
      *
-     * @param string $text The html representation of the element
+     * @param string $text The text representation of the element
      *
      * @return string The hashed element
      */
@@ -608,6 +594,56 @@ class Markdown
         return $this->hashPart($text, 'B');
     }
 
+    /**
+     * Hashes a part to a unique text token so we don't have to process it again
+     * The original text is stored in an array for future use and the unique
+     * token is returned to replace in the whole text.
+     * The boundary is used to distinguish between block elements (B),
+     * word separators (:) and general use (X)
+     *
+     * @param string $text The text to add to the hashes
+     * @param string $boundary The boundary to use in the key when adding
+     *                         to hashes
+     *
+     * @return string The hashed element
+     */
+    protected function hashPart($text, $boundary = 'X')
+    {
+        static $i = 0;
+
+        // First we are going to unhash any hashes found in the text to prevent
+        // the need to unhash multiple times at the end
+        $text = $this->unHash($text);
+
+        $key = $boundary . "\x1A" . ++$this->currentHashIndex . $boundary;
+        $this->htmlHashes[$key] = $text;
+
+        return $key;
+    }
+
+    /**
+     * Unhashes the text using the stored elements in the array with hashes
+     *
+     * @param string $text The text to unhash
+     *
+     * @return string The unhashed text
+     */
+    protected function unHash($text)
+    {
+        return preg_replace_callback('/(.)\x1A[0-9]+\1/', array(&$this, 'unHashCallback'), $text);
+    }
+
+    /**
+     * Replaces the matches (from the unhash regex) with the original values
+     *
+     * @param array $matches The matches from the unhash regex
+     *
+     * @return string The unhashed text
+     */
+    protected function unHashCallback($matches)
+    {
+        return $this->htmlHashes[$matches[0]];
+    }
 
 	function runBlockGamut($text) {
 	#
@@ -653,7 +689,7 @@ class Markdown
 				[ ]*		# Tailing spaces
 				$			# End of line.
 			}mx',
-			"\n".$this->hashBlock('<hr' . self::EMPTY_ELEMENT_SUFFIX) . "\n",
+			"\n".$this->hashBlockElement('<hr' . self::EMPTY_ELEMENT_SUFFIX) . "\n",
 			$text);
 	}
 
@@ -944,12 +980,12 @@ class Markdown
 
 		$level = $matches[2]{0} == '=' ? 1 : 2;
 		$block = "<h$level>".$this->runSpanGamut($matches[1])."</h$level>";
-		return "\n" . $this->hashBlock($block) . "\n\n";
+		return "\n" . $this->hashBlockElement($block) . "\n\n";
 	}
 	function _doHeaders_callback_atx($matches) {
 		$level = strlen($matches[1]);
 		$block = "<h$level>".$this->runSpanGamut($matches[2])."</h$level>";
-		return "\n" . $this->hashBlock($block) . "\n\n";
+		return "\n" . $this->hashBlockElement($block) . "\n\n";
 	}
 
 
@@ -1033,7 +1069,7 @@ class Markdown
 		$list .= "\n";
 		$result = $this->processListItems($list, $marker_any_re);
 
-		$result = $this->hashBlock("<$list_type>\n" . $result . "</$list_type>");
+		$result = $this->hashBlockElement("<$list_type>\n" . $result . "</$list_type>");
 		return "\n". $result ."\n\n";
 	}
 
@@ -1138,7 +1174,7 @@ class Markdown
 		$codeblock = preg_replace('/\A\n+|\n+\z/', '', $codeblock);
 
 		$codeblock = "<pre><code>$codeblock\n</code></pre>";
-		return "\n\n".$this->hashBlock($codeblock)."\n\n";
+		return "\n\n".$this->hashBlockElement($codeblock)."\n\n";
 	}
 
 
@@ -1306,7 +1342,7 @@ class Markdown
 		$bq = preg_replace_callback('{(\s*<pre>.+?</pre>)}sx',
 			array(&$this, '_doBlockQuotes_callback2'), $bq);
 
-		return "\n". $this->hashBlock("<blockquote>\n$bq\n</blockquote>")."\n\n";
+		return "\n". $this->hashBlockElement("<blockquote>\n$bq\n</blockquote>")."\n\n";
 	}
 	function _doBlockQuotes_callback2($matches) {
 		$pre = $matches[1];
@@ -1583,16 +1619,4 @@ class Markdown
 	#
 		return preg_replace('/^(\t|[ ]{1,'.self::TAB_WIDTH.'})/m', '', $text);
 	}
-
-	function unhash($text) {
-	#
-	# Swap back in all the tags hashed by _HashHTMLBlocks.
-	#
-		return preg_replace_callback('/(.)\x1A[0-9]+\1/',
-			array(&$this, '_unhash_callback'), $text);
-	}
-	function _unhash_callback($matches) {
-		return $this->htmlHashes[$matches[0]];
-	}
-
 }
