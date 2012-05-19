@@ -261,10 +261,7 @@ class Markdown
      */
     public function parse($text)
     {
-        // first let's normalize the text
-        $text = $this->removeBom($text);
-        $text = $this->normalizeLinebreaks($text);
-        $text = $this->normalizeTabs($text);
+        $text = normalizeText($text);
 
         // hash HTML elements
         $text = $this->hashHTMLBlocks($text);
@@ -283,6 +280,23 @@ class Markdown
         $this->initializeAndCleanUp();
 
         return $text . "\n";
+    }
+
+    /**
+     * Normalizes the provided text by removing BOM characters, normalizing
+     * line breaks and normalizing tabs
+     *
+     * @param string $text The text to normalize
+     *
+     * @return string The normalized text
+     */
+    protected function normalizeText($text)
+    {
+        $text = $this->removeBom($text);
+        $text = $this->normalizeLinebreaks($text);
+        $text = $this->normalizeTabs($text);
+
+        return $text;
     }
 
     /**
