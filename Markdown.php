@@ -233,6 +233,8 @@ class Markdown
         $this->hashes = array();
 
         $this->inAnchor = false;
+
+        $this->currentHashIndex = 0;
     }
 
     /**
