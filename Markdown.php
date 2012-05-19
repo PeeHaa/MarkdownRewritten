@@ -102,8 +102,8 @@ class Markdown
      *            The gamut is defined by method to run and the priority
      *            so it can easily be sorted
      */
-    protected $documentGamut = array('stripLinkDefinitions' => 20,
-                                     'runBasicBlockGamut'   => 30,
+    protected $documentGamut = array('stripLinkDefinitions'     => 20,
+                                     'processBasicBlockGamut'   => 30,
                                      );
 
     /**
@@ -647,35 +647,38 @@ class Markdown
         return $this->htmlHashes[$matches[0]];
     }
 
-	function runBlockGamut($text) {
-	#
-	# Run block gamut tranformations.
-	#
-		# We need to escape raw HTML in Markdown source before doing anything
-		# else. This need to be done for each block, and not only at the
-		# begining in the Markdown function since hashed blocks can be part of
-		# list items and could have been indented. Indented blocks would have
-		# been seen as a code block in a previous pass of hashHTMLBlocks.
-		$text = $this->hashHTMLBlocks($text);
+    /**
+     * First all raw HTML gets hashed and after that we are going through the
+     * block gamut as defined in self::blockGamut
+     *
+     * @param string $text The text we are going to process
+     *
+     * @return string The text with the parsed block elements
+     */
+    protected function processBlockGamut($text)
+    {
+        $text = $this->hashHTMLBlocks($text);
 
-		return $this->runBasicBlockGamut($text);
-	}
+        return $this->processBasicBlockGamut($text);
+    }
 
-	function runBasicBlockGamut($text) {
-	#
-	# Run block gamut tranformations, without hashing HTML blocks. This is
-	# useful when HTML blocks are known to be already hashed, like in the first
-	# whole-document pass.
-	#
-		foreach ($this->blockGamut as $method => $priority) {
-			$text = $this->$method($text);
-		}
+    /**
+     * Parse the block gamut using the methods defined in self::blockGamut
+     *
+     * @param string $text The text we are going to process
+     *
+     * @return string The text with the parsed block elements
+     */
+    protected function processBasicBlockGamut($text)
+    {
+        foreach ($this->blockGamut as $method => $priority) {
+            $text = $this->$method($text);
+        }
 
-		# Finally form paragraph and restore hashed blocks.
-		$text = $this->formParagraphs($text);
+        $text = $this->formParagraphs($text);
 
-		return $text;
-	}
+        return $text;
+    }
 
 
 	function doHorizontalRules($text) {
@@ -1135,7 +1138,7 @@ class Markdown
 		{
 			# Replace marker with the appropriate whitespace indentation
 			$item = $leading_space . str_repeat(' ', strlen($marker_space)) . $item;
-			$item = $this->runBlockGamut($this->outdent($item)."\n");
+			$item = $this->processBlockGamut($this->outdent($item)."\n");
 		}
 		else {
 			# Recursion for sub-lists:
@@ -1336,7 +1339,7 @@ class Markdown
 		$bq = $matches[1];
 		# trim one level of quoting - trim whitespace-only lines
 		$bq = preg_replace('/^[ ]*>[ ]?|^[ ]+$/m', '', $bq);
-		$bq = $this->runBlockGamut($bq);		# recurse
+		$bq = $this->processBlockGamut($bq);		# recurse
 
 		$bq = preg_replace('/^/m', "  ", $bq);
 		# These leading spaces cause problem with <pre> content,
