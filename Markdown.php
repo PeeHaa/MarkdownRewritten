@@ -595,13 +595,18 @@ class Markdown
 		return $key; # String that will replace the tag.
 	}
 
-
-	function hashBlock($text) {
-	#
-	# Shortcut function for hashPart with block-level boundaries.
-	#
-		return $this->hashPart($text, 'B');
-	}
+    /**
+     * Hashes block level elements (this function is a shortcut
+     * of doing self::hashPart($text, 'B'))
+     *
+     * @param string $text The html representation of the element
+     *
+     * @return string The hashed element
+     */
+    protected function hashBlockElement($text)
+    {
+        return $this->hashPart($text, 'B');
+    }
 
 
 	function runBlockGamut($text) {
