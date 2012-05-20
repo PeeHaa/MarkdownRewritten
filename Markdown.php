@@ -111,11 +111,11 @@ class Markdown
      *            The gamut is defined by method to run and the priority
      *            so it can easily be sorted
      */
-    protected $blockGamut = array('doHeaders'         => 10,
-                                  'processHorizontalRules' => 20,
-                                  'doLists'           => 40,
-                                  'doCodeBlocks'      => 50,
-                                  'doBlockQuotes'     => 60,
+    protected $blockGamut = array('processHeaders'          => 10,
+                                  'processHorizontalRules'  => 20,
+                                  'doLists'                 => 40,
+                                  'doCodeBlocks'            => 50,
+                                  'doBlockQuotes'           => 60,
                                   );
 
     /**
@@ -681,6 +681,82 @@ class Markdown
     }
 
     /**
+     * Parse headers in the text of both styles: Setext and atx
+     * Setext supports to levels of headers:
+     * Header 1
+     * ========
+     *
+     * Header 2
+     * --------
+     *
+     * Atx style headers:
+     * # Header 1
+     * ## Header 2
+     * ## Header 2 with closing hashes ##
+     * ...
+     * ###### Header 6
+     *
+     * @param string $text The text we are going to process
+     *
+     * @return string The text with the parsed headers
+     */
+    protected function processHeaders($text)
+    {
+        $text = preg_replace_callback('{ ^(.+?)[ ]*\n(=+|-+)[ ]*\n+ }mx', array(&$this, 'processSetextHeadersCallback'), $text);
+
+        $text = preg_replace_callback('{
+                ^(\#{1,6})  # $1 = string of #\'s
+                [ ]*
+                (.+?)       # $2 = Header text
+                [ ]*
+                \#*         # optional closing #\'s (not counted)
+                \n+
+            }xm',
+            array(&$this, 'processAxtHeadersCallback'), $text);
+
+        return $text;
+    }
+
+    /**
+     * Parse Setext style headers from the processHeaders regex
+     *
+     * @param array $matches The match we want to replace
+     *
+     * @return string The text with the parsed Setext headers
+     */
+    protected function processSetextHeadersCallback($matches) {
+        // Terrible hack to check we haven't found an empty list item.
+        if ($matches[2] == '-' && preg_match('{^-(?: |$)}', $matches[1])) {
+            return $matches[0];
+        }
+
+        if ($matches[2]{0} == '=') {
+            $level = 1;
+        } else {
+            $level = 2;
+        }
+
+        $block = '<h' . $level . '>' . $this->runSpanGamut($matches[1]) . '</h' . $level . '>';
+
+        return "\n" . $this->hashBlockElement($block) . "\n\n";
+    }
+
+    /**
+     * Parse Atx style headers from the processHeaders regex
+     *
+     * @param array $matches The match we want to replace
+     *
+     * @return string The text with the parsed Atx headers
+     */
+    protected function processAxtHeadersCallback($matches)
+    {
+        $level = strlen($matches[1]);
+        $block = '<h' . $level . '>' . $this->runSpanGamut($matches[2]) . '</h' . $level . '>';
+
+        return "\n" . $this->hashBlockElement($block) . "\n\n";
+    }
+
+    /**
      * Parse horizontal rules
      *
      * @param string $text The text we are going to process
@@ -951,52 +1027,6 @@ class Markdown
 		$result .= self::EMPTY_ELEMENT_SUFFIX;
 
 		return $this->hashPart($result);
-	}
-
-
-	function doHeaders($text) {
-		# Setext-style headers:
-		#	  Header 1
-		#	  ========
-		#
-		#	  Header 2
-		#	  --------
-		#
-		$text = preg_replace_callback('{ ^(.+?)[ ]*\n(=+|-+)[ ]*\n+ }mx',
-			array(&$this, '_doHeaders_callback_setext'), $text);
-
-		# atx-style headers:
-		#	# Header 1
-		#	## Header 2
-		#	## Header 2 with closing hashes ##
-		#	...
-		#	###### Header 6
-		#
-		$text = preg_replace_callback('{
-				^(\#{1,6})	# $1 = string of #\'s
-				[ ]*
-				(.+?)		# $2 = Header text
-				[ ]*
-				\#*			# optional closing #\'s (not counted)
-				\n+
-			}xm',
-			array(&$this, '_doHeaders_callback_atx'), $text);
-
-		return $text;
-	}
-	function _doHeaders_callback_setext($matches) {
-		# Terrible hack to check we haven't found an empty list item.
-		if ($matches[2] == '-' && preg_match('{^-(?: |$)}', $matches[1]))
-			return $matches[0];
-
-		$level = $matches[2]{0} == '=' ? 1 : 2;
-		$block = "<h$level>".$this->runSpanGamut($matches[1])."</h$level>";
-		return "\n" . $this->hashBlockElement($block) . "\n\n";
-	}
-	function _doHeaders_callback_atx($matches) {
-		$level = strlen($matches[1]);
-		$block = "<h$level>".$this->runSpanGamut($matches[2])."</h$level>";
-		return "\n" . $this->hashBlockElement($block) . "\n\n";
 	}
 
 
