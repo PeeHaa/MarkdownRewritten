@@ -1,0 +1,25 @@
+{
+    "name": "PeeHaa/MarkdownRewritten",
+    "description": "A rewrite of the PHP Markdown code",
+    "keywords": ["md", "markdown", "rewrite"],
+    "homepage": "https://github.com/PeeHaa/MarkdownRewritten",
+    "license": "BSD-3-Clause",
+    "authors": [
+        {
+            "name": "Pieter Hordijk",
+            "email": "info@pieterhordijk.com",
+            "homepage": "https://pieterhordijk.com",
+            "role": "developer"
+        },
+        {
+            "name": "Michel Fortin",
+            "homepage": "http://michelf.com/projects/php-markdown",
+            "role": "developer"
+        },
+        {
+            "name": "John Gruber",
+            "homepage": "http://daringfireball.net/projects/markdown",
+            "role": "developer"
+        }
+    ],
+}
